@@ -1,6 +1,8 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { processPortfolioData } = require('./utils/portfolioCalculator');
 const authRoutes = require('./routes/auth');
 const walletAuthRoutes = require('./routes/walletAuth');
@@ -46,6 +48,33 @@ app.get('/api/debank/portfolio/:address', optionalAuth, async (req, res) => {
     }
     const data = await response.json();
     console.log('D-Bank API Response:', JSON.stringify(data, null, 2));
+    
+    // Save raw DeBank API response to JSON file
+    try {
+      const responseDir = path.join(__dirname, 'debank_responses');
+      if (!fs.existsSync(responseDir)) {
+        fs.mkdirSync(responseDir, { recursive: true });
+      }
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `debank_response_${address.slice(0, 8)}_${timestamp}.json`;
+      const filepath = path.join(responseDir, filename);
+      
+      const responseData = {
+        timestamp: new Date().toISOString(),
+        address: address,
+        chain_ids: chain_ids,
+        url: url,
+        response_status: response.status,
+        raw_data: data
+      };
+      
+      fs.writeFileSync(filepath, JSON.stringify(responseData, null, 2));
+      console.log(`✅ DeBank API response saved to: ${filepath}`);
+    } catch (saveError) {
+      console.error('❌ Error saving DeBank response to file:', saveError);
+      // Don't fail the request if file saving fails
+    }
     
     // Process the data to calculate PnL, APY, and other metrics
     const processedData = processPortfolioData(data);
